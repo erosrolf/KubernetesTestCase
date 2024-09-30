@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-web-app
+spec:
+  replicas: 3  # Мы устанавливаем количество реплик на уровне 3 для поддержки постоянной нагрузки.
+  selector:
+    matchLabels:
+      app: my-web-app
+  template:
+    metadata:
+      labels:
+        app: my-web-app
+    spec:
+      affinity:
+        # Используем podAntiAffinity для размещения подов на разных нодах.
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - my-web-app
+              topologyKey: "kubernetes.io/hostname"  # Распределяем поды по нодам.
+      containers:
+        - name: web-app
+          image: my-web-app-image:latest  # Укажите правильный образ для вашего приложения.
+          resources:
+            requests:
+              cpu: "300m"  # Запрашиваем 0.3 CPU для старта.
+              memory: "128Mi"  # Запрашиваем 128Mi памяти.
+            limits:
+              cpu: "1"  # Ограничиваем использование CPU до 1.
+              memory: "256Mi"  # Ограничиваем использование памяти до 256Mi.
+          readinessProbe:
+            httpGet:
+              path: /health  # Эндпоинт для проверки готовности приложения.
+              port: 80
+            initialDelaySeconds: 10  # Ожидание перед первой проверкой готовности.
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health  # Эндпоинт для проверки живости приложения.
+              port: 80
+            initialDelaySeconds: 30  # Ожидание перед первой проверкой живости.
+            periodSeconds: 10
+      initContainers:
+        - name: init-web-app
+          image: my-web-app-image:latest  # Используем тот же образ для инициализации.
+          command: ['sh', '-c', 'sleep 10']  # Задержка для эмуляции процесса инициализации.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-web-app-service
+spec:
+  selector:
+    app: my-web-app
+  ports:
+    - port: 80
+      targetPort: 80  # Порт, на который направляется трафик.
+  type: ClusterIP  # Тип сервиса, доступного внутри кластера.
+
